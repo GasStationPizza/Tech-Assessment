@@ -257,7 +257,7 @@ resource "aws_iam_role_policy" "ec2_s3_backup_policy" {
   })
 }
 
-resource "aws_instance_profile" "ec2_s3_backup_profile" {
+resource "aws_iam_instance_profile" "ec2_s3_backup_profile" {
   name = "ec2-s3-backup-profile"
   role = aws_iam_role.ec2_s3_backup_role.name
 }
