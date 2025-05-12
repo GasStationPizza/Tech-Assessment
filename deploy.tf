@@ -373,12 +373,12 @@ resource "aws_guardduty_detector" "guardduty" {
   enable = true #  Enable GuardDuty
 
   # Configure S3 export options.
-  s3_export_options {
-    bucket_arn = aws_s3_bucket.guardduty_logs.arn
+ # s3_export_options {
+  #  bucket_arn = aws_s3_bucket.guardduty_logs.arn
     #  No KMS key specified, so S3 will use AES256.
     #  If you want to use a KMS key, add:
     #  kms_key_arn = "arn:aws:kms:your-region:your-account-id:key/your-key-id"
-    }
+   # }
 }
 
 
