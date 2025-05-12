@@ -179,7 +179,7 @@ resource "aws_instance" "crAPI_instance" {
         app_port = var.app_port,
         mongo_backup_bucket = var.mongo_backup_bucket_name
     }) # Use a template for user data
-  iam_instance_profile = aws_instance_profile.ec2_s3_backup_profile.name # Attach the instance profile
+  iam_instance_profile = aws_iam_instance_profile.ec2_s3_backup_profile.name # Attach the instance profile
 
   tags = {
     Name = "crAPI-Instance"
@@ -274,7 +274,7 @@ resource "aws_instance" "crAPI_instance_IAM" {
         app_port = var.app_port,
         mongo_backup_bucket = var.mongo_backup_bucket_name
     }) # Use a template for user data
-  iam_instance_profile = aws_instance_profile.ec2_s3_backup_profile.name # Attach the instance profile
+  iam_instance_profile = aws_iam_instance_profile.ec2_s3_backup_profile.name # Attach the instance profile
 
   tags = {
     Name = "crAPI-Instance"
