@@ -325,13 +325,75 @@ resource "aws_s3_bucket" "guardduty_log_bucket" {
   }
 }
 
+## - one stab at GuardDuty
 # Enable GuardDuty and configure S3 logging
+#resource "aws_guardduty_detector" "guardduty" {
+#  enable = true
+#  s3_data_source {
+#    bucket_arn = aws_s3_bucket.guardduty_log_bucket.arn
+#    #  No policy needed, bucket policy handles this
+#    }
+#}
+
+resource "aws_s3_bucket" "guardduty_logs" {
+  bucket = "guardduty-logs-${8675309Wiz}" # Ensure bucket name is globally unique
+  #  ACL should be private and NOT public-read.  Using 'private'
+  acl    = "private"
+
+# Create an S3 bucket policy to allow GuardDuty to write logs
+resource "aws_s3_bucket_policy" "guardduty_logs_policy" {
+  bucket = aws_s3_bucket.guardduty_logs.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = { Service = "guardduty.amazonaws.com" }
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.guardduty_logs.arn}/*"
+        Condition = {
+          StringEquals = {
+            "s3:x-amz-acl" = "bucket-owner-full-control"
+          }
+        }
+      },
+      {
+        Effect    = "Allow"
+        Principal = { Service = "guardduty.amazonaws.com" }
+        Action    = "s3:GetBucketLocation"
+        Resource  = "${aws_s3_bucket.guardduty_logs.arn}"
+      }
+    ]
+  })
+}
+
+# Enable GuardDuty and configure it to use the S3 bucket for logs
 resource "aws_guardduty_detector" "guardduty" {
-  enable = true
-  s3_data_source {
-    bucket_arn = aws_s3_bucket.guardduty_log_bucket.arn
-    #  No policy needed, bucket policy handles this
+  enable = true #  Enable GuardDuty
+
+  # Configure S3 export options.
+  s3_export_options {
+    bucket_arn = aws_s3_bucket.guardduty_logs.arn
+    #  No KMS key specified, so S3 will use AES256.
+    #  If you want to use a KMS key, add:
+    #  kms_key_arn = "arn:aws:kms:your-region:your-account-id:key/your-key-id"
     }
+}
+
+
+  # Optional: Add versioning for data integrity
+  versioning {
+    enabled = true
+  }
+
+  # Optional: Enable server-side encryption.  Recommended for security.
+  #server_side_encryption_configuration {
+  #  rule {
+  #    apply_server_side_encryption_by_default {
+  #      sse_algorithm = "AES256" # Or "aws:kms" if you want to use KMS
+  #    }
+  #  }
+  #}
 }
 
 # Output the public IP of the instance
