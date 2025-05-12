@@ -263,7 +263,7 @@ resource "aws_instance_profile" "ec2_s3_backup_profile" {
 }
 
 # Modify EC2 Instance to use the IAM role.
-resource "aws_instance" "crAPI_instance" {
+resource "aws_instance" "crAPI_instance_IAM" {
   ami           = var.ami_id #  Use the variable
   instance_type = var.instance_type
   subnet_id     = aws_subnet.crAPI_public_subnets[0].id #  Place in a public subnet
