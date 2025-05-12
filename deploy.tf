@@ -36,7 +36,7 @@ variable "private_subnet_cidrs" {
 variable "instance_type" {
   description = "The EC2 instance type to use"
   type        = string
-  default     = "t3.medium" #  Consider t3.medium or larger
+  default     = "t3.medium" # Consider t3.medium or larger
 }
 
 variable "key_name" {
@@ -48,7 +48,7 @@ variable "key_name" {
 variable "ami_id" {
   description = "The ID of the AMI to use for the EC2 instance"
   type        = string
-  default     = "ami-097261bd06e355492" #  Ubuntu 16.04 in us-east-2.
+  default     = "ami-097261bd06e355492" # Ubuntu 16.04 in us-east-2.  Updated in data source.
 }
 
 variable "app_port" {
@@ -60,13 +60,13 @@ variable "app_port" {
 variable "mongo_backup_bucket_name" {
   description = "Name of the S3 bucket for MongoDB backups"
   type        = string
-  default     = "crapi-mongo-backups_8675309" # Change this to a unique bucket name
+  default     = "crapi-mongo-backups-unique" # Change this to a unique bucket name
 }
 
 variable "guardduty_s3_bucket_name" {
   description = "Name of the S3 bucket for GuardDuty logs"
   type        = string
-  default     = "crapi-guardduty-logs_8675309" # Change this to a unique bucket name
+  default     = "crapi-guardduty-logs-unique" # Change this to a unique bucket name
 }
 
 # Data sources
@@ -97,9 +97,9 @@ resource "aws_vpc" "crAPI_vpc" {
 # Create Public Subnets
 resource "aws_subnet" "crAPI_public_subnets" {
   count = length(var.public_subnet_cidrs)
-  vpc_id     = aws_vpc.crAPI_vpc.id
-  cidr_block = var.public_subnet_cidrs[count.index]
-  availability_zone = "us-east-2${count.index + 1}" #  Make sure this matches the number of subnets
+  vpc_id            = aws_vpc.crAPI_vpc.id
+  cidr_block      = var.public_subnet_cidrs[count.index]
+  availability_zone = "${var.region}${count.index + 1}" # Use variable for region
   tags = {
     Name = "crAPI-Public-Subnet-${count.index + 1}"
   }
@@ -108,9 +108,9 @@ resource "aws_subnet" "crAPI_public_subnets" {
 # Create Private Subnets
 resource "aws_subnet" "crAPI_private_subnets" {
   count = length(var.private_subnet_cidrs)
-  vpc_id     = aws_vpc.crAPI_vpc.id
-  cidr_block = var.private_subnet_cidrs[count.index]
-  availability_zone = "us-east-2${count.index + 1}" #  Make sure this matches the number of subnets
+  vpc_id            = aws_vpc.crAPI_vpc.id
+  cidr_block      = var.private_subnet_cidrs[count.index]
+  availability_zone = "${var.region}${count.index + 1}" # Use variable for region
   tags = {
     Name = "crAPI-Private-Subnet-${count.index + 1}"
   }
@@ -153,7 +153,7 @@ resource "aws_security_group" "crAPI_sg" {
     from_port   = 0
     to_port     = 0
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] #  WARNING:  This is open to the world.  Restrict as needed.
+    cidr_blocks = ["0.0.0.0/0"] # WARNING: This is open to the world. Restrict as needed.
   }
 
   egress {
@@ -168,51 +168,82 @@ resource "aws_security_group" "crAPI_sg" {
   }
 }
 
+# User data script to install and configure crAPI
+data "template_file" "crAPI_setup" {
+  template = <<EOF
+#!/bin/bash
+set -x
+# Install dependencies
+sudo apt-get update -y
+sudo apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    docker.io \
+    docker-compose \
+    python3 \
+    python3-pip
+
+# Add Docker GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Set up the stable Docker repository
+echo \
+  "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
+
+# Update and install Docker
+sudo apt-get update -y
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+# Install Docker Compose Plugin (New Method)
+sudo apt-get install -y docker-compose-plugin
+
+# Clone the crAPI repository
+git clone https://github.com/OWASP/crAPI /home/ubuntu/crAPI
+cd /home/ubuntu/crAPI
+
+# Create .env file from .env.example, setting the port
+cp .env.example .env
+sed -i "s/PORT=8080/PORT=${app_port}/g" .env
+
+# Set the MongoDB Backup Bucket in .env
+sed -i "s/MONGO_BACKUP_S3_BUCKET=crapimonitoring-mongodb-backups/MONGO_BACKUP_S3_BUCKET=${mongo_backup_bucket}/g" .env
+
+# Run docker compose
+docker compose up -d
+EOF
+  vars = {
+    app_port            = var.app_port
+    mongo_backup_bucket = var.mongo_backup_bucket_name
+  }
+}
+
 # Create EC2 Instance
 resource "aws_instance" "crAPI_instance" {
-  ami           = var.ami_id #  Use the variable
+  ami           = data.aws_ami.ubuntu.id # Use the data source
   instance_type = var.instance_type
-  subnet_id     = aws_subnet.crAPI_public_subnets[0].id #  Place in a public subnet
+  subnet_id       = aws_subnet.crAPI_public_subnets[0].id # Place in a public subnet
   security_groups = [aws_security_group.crAPI_sg.id]
-  key_name      = var.key_name #  Use the key name variable
-  user_data = templatefile("crAPI_setup.sh", {
-        app_port = var.app_port,
-        mongo_backup_bucket = var.mongo_backup_bucket_name
-    }) # Use a template for user data
+  key_name      = var.key_name # Use the key name variable
+  user_data     = data.template_file.crAPI_setup.rendered # Use the rendered template
   iam_instance_profile = aws_iam_instance_profile.ec2_s3_backup_profile.name # Attach the instance profile
 
   tags = {
     Name = "crAPI-Instance"
   }
-  #  Important:  If you do not specify a key_name, you will not be able to SSH into the instance.
+  # Important: If you do not specify a key_name, you will not be able to SSH into the instance.
 }
 
 # Create S3 Bucket for MongoDB Backups
 resource "aws_s3_bucket" "mongo_backup_bucket" {
   bucket = var.mongo_backup_bucket_name
-  acl    = "public-read" # WARNING: This makes the bucket contents publicly readable.
+  acl    = "private" # Changed to private.  Making this public is a SECURITY RISK.
 
-  policy = jsonencode({ # Make bucket listable
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "PublicRead"
-        Effect = "Allow"
-        Principal = {
-          AWS = "*"
-        }
-        Action = [
-          "s3:GetObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.mongo_backup_bucket_name}",
-          "arn:aws:s3:::${var.mongo_backup_bucket_name}/*"
-        ]
-      }
-    ]
-  })
-
+  #  Removed the public read policy.  This is a security risk.  The EC2 instance
+  #  will access this bucket using an IAM role.
   tags = {
     Name = "MongoDB Backup Bucket"
   }
@@ -263,30 +294,10 @@ resource "aws_iam_instance_profile" "ec2_s3_backup_profile" {
   role = aws_iam_role.ec2_s3_backup_role.name
 }
 
-# Modify EC2 Instance to use the IAM role.
-resource "aws_instance" "crAPI_instance_IAM" {
-  ami           = var.ami_id #  Use the variable
-  instance_type = var.instance_type
-  subnet_id     = aws_subnet.crAPI_public_subnets[0].id #  Place in a public subnet
-  security_groups = [aws_security_group.crAPI_sg.id]
-  key_name      = var.key_name #  Use the key name variable
-  user_data = templatefile("crAPI_setup.sh", {
-        app_port = var.app_port,
-        mongo_backup_bucket = var.mongo_backup_bucket_name
-    }) # Use a template for user data
-  iam_instance_profile = aws_iam_instance_profile.ec2_s3_backup_profile.name # Attach the instance profile
-
-  tags = {
-    Name = "crAPI-Instance"
-  }
-  #  Important:  If you do not specify a key_name, you will not be able to SSH into the instance.
-}
-
 # Create S3 Bucket for GuardDuty Logs
 resource "aws_s3_bucket" "guardduty_log_bucket" {
   bucket = var.guardduty_s3_bucket_name
-  acl    = "private" # Ensure the log bucket is NOT publicly accessible
-
+  acl    = "private" # Ensure the log bucket is NOT publicly accessible.  Corrected to 'private'
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -326,73 +337,10 @@ resource "aws_s3_bucket" "guardduty_log_bucket" {
   }
 }
 
-## - one stab at GuardDuty
 # Enable GuardDuty and configure S3 logging
-#resource "aws_guardduty_detector" "guardduty" {
-#  enable = true
-#  s3_data_source {
-#    bucket_arn = aws_s3_bucket.guardduty_log_bucket.arn
-#    #  No policy needed, bucket policy handles this
-#    }
-#}
-
-resource "aws_s3_bucket" "guardduty_logs" {
-  bucket = "guardduty-logs-8675309Wizz" # Ensure bucket name is globally unique
-  #  ACL should be private and NOT public-read.  Using 'private'
-  acl    = "private"
-}
-
-# Create an S3 bucket policy to allow GuardDuty to write logs
-resource "aws_s3_bucket_policy" "guardduty_logs_policy" {
-  bucket = aws_s3_bucket.guardduty_logs.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect    = "Allow"
-        Principal = { Service = "guardduty.amazonaws.com" }
-        Action    = "s3:PutObject"
-        Resource  = "${aws_s3_bucket.guardduty_logs.arn}/*"
-        Condition = {
-          StringEquals = {
-            "s3:x-amz-acl" = "bucket-owner-full-control"
-          }
-        }
-      },
-      {
-        Effect    = "Allow"
-        Principal = { Service = "guardduty.amazonaws.com" }
-        Action    = "s3:GetBucketLocation"
-        Resource  = "${aws_s3_bucket.guardduty_logs.arn}"
-      }
-    ]
-  })
-}
-
-# Enable GuardDuty and configure it to use the S3 bucket for logs
 resource "aws_guardduty_detector" "guardduty" {
-  enable = true #  Enable GuardDuty
-
-  # Configure S3 export options.
- # s3_export_options {
-  #  bucket_arn = aws_s3_bucket.guardduty_logs.arn
-    #  No KMS key specified, so S3 will use AES256.
-    #  If you want to use a KMS key, add:
-    #  kms_key_arn = "arn:aws:kms:your-region:your-account-id:key/your-key-id"
-   # }
+  enable = true
 }
-
-
-
-  # Optional: Enable server-side encryption.  Recommended for security.
-  #server_side_encryption_configuration {
-  #  rule {
-  #    apply_server_side_encryption_by_default {
-  #      sse_algorithm = "AES256" # Or "aws:kms" if you want to use KMS
-  #    }
-  #  }
-  #}
-
 
 # Output the public IP of the instance
 output "crAPI_public_ip" {
@@ -408,7 +356,7 @@ output "mongo_backup_bucket_name" {
 }
 
 output "guardduty_detector_id" {
-  value = aws_guardduty_detector.guardduty.id
+  value = aws_guardduty_detector.id
 }
 
 output "guardduty_log_bucket_name" {
