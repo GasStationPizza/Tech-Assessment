@@ -48,7 +48,7 @@ variable "key_name" {
 variable "ami_id" {
   description = "The ID of the AMI to use for the EC2 instance"
   type        = string
-  default     = "ami-0c55b956cb0f982fa" #  Ubuntu 20.04 in us-east-1.  Change for your region.
+  default     = "ami-097261bd06e355492" #  Ubuntu 16.04 in us-east-2.
 }
 
 variable "app_port" {
