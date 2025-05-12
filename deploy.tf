@@ -339,6 +339,7 @@ resource "aws_s3_bucket" "guardduty_logs" {
   bucket = "guardduty-logs-${8675309Wiz}" # Ensure bucket name is globally unique
   #  ACL should be private and NOT public-read.  Using 'private'
   acl    = "private"
+}
 
 # Create an S3 bucket policy to allow GuardDuty to write logs
 resource "aws_s3_bucket_policy" "guardduty_logs_policy" {
