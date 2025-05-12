@@ -336,7 +336,7 @@ resource "aws_s3_bucket" "guardduty_log_bucket" {
 #}
 
 resource "aws_s3_bucket" "guardduty_logs" {
-  bucket = "guardduty-logs-${8675309Wiz}" # Ensure bucket name is globally unique
+  bucket = "guardduty-logs-8675309Wizz" # Ensure bucket name is globally unique
   #  ACL should be private and NOT public-read.  Using 'private'
   acl    = "private"
 }
