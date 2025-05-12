@@ -382,10 +382,6 @@ resource "aws_guardduty_detector" "guardduty" {
 }
 
 
-  # Optional: Add versioning for data integrity
-  versioning {
-    enabled = true
-  }
 
   # Optional: Enable server-side encryption.  Recommended for security.
   #server_side_encryption_configuration {
@@ -395,7 +391,7 @@ resource "aws_guardduty_detector" "guardduty" {
   #    }
   #  }
   #}
-}
+
 
 # Output the public IP of the instance
 output "crAPI_public_ip" {
