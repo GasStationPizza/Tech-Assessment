@@ -168,23 +168,67 @@ resource "aws_security_group" "crAPI_sg" {
   }
 }
 
+# TAKE 1
 # Create EC2 Instance
-resource "aws_instance" "crAPI_instance" {
-  ami           = var.ami_id #  Use the variable
-  instance_type = var.instance_type
-  subnet_id     = aws_subnet.crAPI_public_subnets[0].id #  Place in a public subnet
-  security_groups = [aws_security_group.crAPI_sg.id]
-  key_name      = var.key_name #  Use the key name variable
-  user_data = templatefile("crAPI_setup.sh", {
-        app_port = var.app_port,
-        mongo_backup_bucket = var.mongo_backup_bucket_name
-    }) # Use a template for user data
-  iam_instance_profile = aws_iam_instance_profile.ec2_s3_backup_profile.name # Attach the instance profile
+#
+#resource "aws_instance" "crAPI_instance" {
+#  ami           = var.ami_id #  Use the variable
+#  instance_type = var.instance_type
+#  subnet_id     = aws_subnet.crAPI_public_subnets[0].id #  Place in a public subnet
+#  security_groups = [aws_security_group.crAPI_sg.id]
+#  key_name      = var.key_name #  Use the key name variable
+#  user_data = templatefile("crAPI_setup.sh", {
+#        app_port = var.app_port,
+#        mongo_backup_bucket = var.mongo_backup_bucket_name
+#    }) # Use a template for user data
+#  iam_instance_profile = aws_iam_instance_profile.ec2_s3_backup_profile.name # Attach the instance profile
+#
+#  tags = {
+#    Name = "crAPI-Instance"
+#  }
+#  #  Important:  If you do not specify a key_name, you will not be able to SSH into the instance.
+#}
+
+# TAKE 2
+resource "aws_instance" "crapi_instance" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.medium" #  Consider t3.small or t3.micro for cost-sensitive testing
+  security_groups        = [aws_security_group.crapi_sg.name]
+  key_name               = "your-ssh-key" # Replace with your SSH key name.  **REQUIRED!**
+
+  user_data = <<-EOF
+              #!/bin/bash
+              # Install Docker
+              apt-get update
+              apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+              add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+              apt-get update
+              apt-get install -y docker-ce docker-compose-plugin
+
+              # Start Docker service
+              systemctl start docker
+              systemctl enable docker
+
+              # Clone the crAPI repository
+              git clone https://github.com/OWASP/crAPI.git /home/ubuntu/crapi
+
+              # Navigate to the docker-compose file
+              cd /home/ubuntu/crapi/deploy/docker
+
+              # Create .env file (if it doesn't exist) and add the port mapping.
+              if [ ! -f "/home/ubuntu/crapi/deploy/docker/.env" ]; then
+                echo "PORT=8080:80" > /home/ubuntu/crapi/deploy/docker/.env
+              else
+                 echo "PORT=8080:80" >> /home/ubuntu/crapi/deploy/docker/.env
+              fi
+              # Run docker-compose up
+              docker compose up -d --build
+              EOF
 
   tags = {
-    Name = "crAPI-Instance"
+    Name = "crAPI Instance"
   }
-  #  Important:  If you do not specify a key_name, you will not be able to SSH into the instance.
 }
 
 # Create S3 Bucket for MongoDB Backups
