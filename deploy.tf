@@ -190,46 +190,46 @@ resource "aws_security_group" "crAPI_sg" {
 #}
 
 # TAKE 2
-resource "aws_instance" "crapi_instance" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t3.medium" 
-  security_groups        = [aws_security_group.crapi_sg.name]
-  key_name               = "your-ssh-key" # Replace with your SSH key name.  **REQUIRED!**
-
-  user_data = <<-EOF
-              #!/bin/bash
-              # Install Docker
-              apt-get update
-              apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-              add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-              apt-get update
-              apt-get install -y docker-ce docker-compose-plugin
-
-              # Start Docker service
-              systemctl start docker
-              systemctl enable docker
-
-              # Clone the crAPI repository
-              git clone https://github.com/OWASP/crAPI.git /home/ubuntu/crapi
-
-              # Navigate to the docker-compose file
-              cd /home/ubuntu/crapi/deploy/docker
-
-              # Create .env file (if it doesn't exist) and add the port mapping.
-              if [ ! -f "/home/ubuntu/crapi/deploy/docker/.env" ]; then
-                echo "PORT=8080:80" > /home/ubuntu/crapi/deploy/docker/.env
-              else
-                 echo "PORT=8080:80" >> /home/ubuntu/crapi/deploy/docker/.env
-              fi
-              # Run docker-compose up
-              docker compose up -d --build
-              EOF
-
-  tags = {
-    Name = "crAPI Instance"
-  }
-}
+#resource "aws_instance" "crapi_instance" {
+#  ami                    = data.aws_ami.ubuntu.id
+#  instance_type          = "t3.medium" 
+#  security_groups        = [aws_security_group.crapi_sg.name]
+#  key_name               = "your-ssh-key" # Replace with your SSH key name.  **REQUIRED!**
+#
+#  user_data = <<-EOF
+#              #!/bin/bash
+#              # Install Docker
+#              apt-get update
+#              apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+#              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+#              add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+#              apt-get update
+#              apt-get install -y docker-ce docker-compose-plugin
+#
+#              # Start Docker service
+#              systemctl start docker
+#              systemctl enable docker
+#
+#              # Clone the crAPI repository
+#              git clone https://github.com/OWASP/crAPI.git /home/ubuntu/crapi
+#
+#              # Navigate to the docker-compose file
+#              cd /home/ubuntu/crapi/deploy/docker
+#
+#              # Create .env file (if it doesn't exist) and add the port mapping.
+#              if [ ! -f "/home/ubuntu/crapi/deploy/docker/.env" ]; then
+#                echo "PORT=8080:80" > /home/ubuntu/crapi/deploy/docker/.env
+#              else
+#                 echo "PORT=8080:80" >> /home/ubuntu/crapi/deploy/docker/.env
+#              fi
+#              # Run docker-compose up
+#              docker compose up -d --build
+#              EOF
+#
+#  tags = {
+#    Name = "crAPI Instance"
+#  }
+#}
 
 # Create S3 Bucket for MongoDB Backups
 resource "aws_s3_bucket" "mongo_backup_bucket" {
