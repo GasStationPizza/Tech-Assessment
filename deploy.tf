@@ -192,7 +192,7 @@ resource "aws_security_group" "crAPI_sg" {
 # TAKE 2
 resource "aws_instance" "crapi_instance" {
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t3.medium" #  Consider t3.small or t3.micro for cost-sensitive testing
+  instance_type          = "t3.medium" 
   security_groups        = [aws_security_group.crapi_sg.name]
   key_name               = "your-ssh-key" # Replace with your SSH key name.  **REQUIRED!**
 
